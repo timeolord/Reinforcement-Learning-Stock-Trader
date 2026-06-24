@@ -221,13 +221,13 @@ class Trainer:
 
             # Scale gradient by the number of unroll steps (See paper appendix Training)
             current_value_loss.register_hook(
-                lambda grad: grad / gradient_scale_batch[:, i]
+                lambda grad, i=i: grad / gradient_scale_batch[:, i]
             )
             current_reward_loss.register_hook(
-                lambda grad: grad / gradient_scale_batch[:, i]
+                lambda grad, i=i: grad / gradient_scale_batch[:, i]
             )
             current_policy_loss.register_hook(
-                lambda grad: grad / gradient_scale_batch[:, i]
+                lambda grad, i=i: grad / gradient_scale_batch[:, i]
             )
 
             value_loss += current_value_loss

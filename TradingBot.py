@@ -33,7 +33,7 @@ def getTickerHistory(tickerName, date, dayInterval, interval):
     delta = datetime.timedelta(days=dayInterval)
     ticker = yf.Ticker(tickerName)
     history = ticker.history(start=dateToString(date - delta), end=dateToString(date), interval=interval)
-    pickle.dump(history, open(f"{tickerName.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "wb"))
+    pickle.dump(history, open(f"Stocks/{tickerName.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "wb"))
     return history
 
 
@@ -46,7 +46,7 @@ dateList = [datetime.date(day=1, month=12, year=2019), datetime.date(day=30, mon
             datetime.date(day=28, month=7, year=2020), datetime.date(day=26, month=9, year=2020),
             datetime.date(day=25, month=11, year=2020), datetime.date(day=24, month=1, year=2021)]
 
-today = datetime.date(day=7, month=7, year=2021)
+today = datetime.date.today()
 
 initialMoney = 1000
 
@@ -89,7 +89,7 @@ def combineList():
             data = openData(stocks, dates, "1h")
             try:
                 data = data.tz_localize('US/Eastern')
-            except:
+            except TypeError:
                 data = data.tz_convert(None)
             listy.append(data)
         history = pd.concat(listy)
@@ -100,14 +100,8 @@ test = False
 
 
 def runModel():
-    global muzero
-    if not test:
-        muzero = muzerobot.MuZero("trading")
-    else:
-        muzero = muzerobot.MuZero("trading")
-    fileName = "~/Music/model.checkpoint"
-    fileName = os.path.expanduser(fileName)
-    # muzero.load_model(fileName, "/home/allanlinux/Music/replay_buffer.pkl")
+    muzero = muzerobot.MuZero("trading")
+    # muzero.load_model("path/to/model.checkpoint", "path/to/replay_buffer.pkl")
     if not test:
         muzero.train()
     else:

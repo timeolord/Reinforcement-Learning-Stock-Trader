@@ -90,7 +90,7 @@ class MuZero:
         if 1 < self.num_gpus:
             self.num_gpus = math.floor(self.num_gpus)
 
-        ray.init(address='auto', _redis_password='5241590000000000')
+        ray.init()
 
         # Checkpoint and replay buffer used to initialize workers
         self.checkpoint = {
@@ -208,19 +208,16 @@ class MuZero:
     def saveModel(self):
         while True:
             time.sleep(120)
-            path = "~/Music/"
-            path = os.path.expanduser(path)
-            path = os.path.join(path, "model.checkpoint")
+            os.makedirs(self.config.results_path, exist_ok=True)
+            path = os.path.join(self.config.results_path, "model.checkpoint")
             if self.shared_storage_worker is not None:
                 print("Saving model")
                 torch.save(ray.get(self.shared_storage_worker.get_checkpoint.remote()), path)
             self.saveBuffer()
 
-
     def saveBuffer(self):
         print("Persisting replay buffer games to disk...")
-        path = "~/Music/"
-        path = os.path.expanduser(path)
+        os.makedirs(self.config.results_path, exist_ok=True)
         pickle.dump(
             {
                 "buffer": self.replay_buffer,
@@ -228,7 +225,7 @@ class MuZero:
                 "num_played_steps": self.checkpoint["num_played_steps"],
                 "num_reanalysed_games": self.checkpoint["num_reanalysed_games"],
             },
-            open(os.path.join(path, "replay_buffer.pkl"), "wb"),
+            open(os.path.join(self.config.results_path, "replay_buffer.pkl"), "wb"),
         )
 
     def logging_loop(self, num_gpus):
@@ -353,7 +350,7 @@ class MuZero:
                 self.shared_storage_worker.get_checkpoint.remote()
             )
         if self.replay_buffer_worker:
-            self.replay_buffer = ray.get(self.repself.checkpointlay_buffer_worker.get_buffer.remote())
+            self.replay_buffer = ray.get(self.replay_buffer_worker.get_buffer.remote())
 
         print("\nShutting down workers...")
 
