@@ -9,6 +9,10 @@ from muzero.games.abstract_game import AbstractGame
 from random import sample
 import cProfile
 
+STOCK_LIST = ["SPY", "AAPL", "NIO", "F", "XLF", "GE", "GM", "T", "TQQQ", "QQQ", "MSFT", "K", "C"]
+TRADE_DATE = datetime.date(day=1, month=12, year=2019)
+INITIAL_MONEY = 1000
+
 
 def makeList(value1, value2, value3, value4):
     actions = []
@@ -24,8 +28,7 @@ def makeList(value1, value2, value3, value4):
 
 class MuZeroConfig:
     def __init__(self):
-        stockList = ["SPY", "AAPL", "NIO", "F", "XLF", "GE", "GM", "T", "TQQQ", "QQQ", "MSFT", "K", "C"]
-        env = y_finance_env(stockList, datetime.date(day=1, month=12, year=2019), "1y", 1000)
+        env = y_finance_env(STOCK_LIST, TRADE_DATE, "1y", INITIAL_MONEY)
         # More information is available here: https://github.com/werner-duvaud/muzero-general/wiki/Hyperparameter-Optimization
 
         self.seed = 0  # Seed for numpy, torch and the game
@@ -49,7 +52,7 @@ class MuZeroConfig:
         self.num_workers = 1  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
         self.max_moves = 3000  # Maximum number of moves if game is not finished before
-        self.num_simulations = 1  # Number of future moves self-simulated
+        self.num_simulations = 50  # Number of future moves self-simulated
         self.discount = 0.997  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
 
@@ -85,8 +88,7 @@ class MuZeroConfig:
         self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
 
         ### Training
-        fileName = "~/Music/"
-        self.results_path = os.path.expanduser(fileName)  # Path to store the model weights and TensorBoard logs
+        self.results_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results", "trading")  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
         self.training_steps = 50_000_000  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 16  # Number of parts of games to train on at each training step
@@ -142,10 +144,7 @@ class Game(AbstractGame):
 
     def __init__(self, seed=None):
         super().__init__(seed)
-        self.stockList = ["SPY", "AAPL", "NIO", "F", "XLF", "GE", "GM", "T", "TQQQ", "QQQ", "MSFT", "K", "C"]
-        self.date = datetime.date(day=1, month=12, year=2019)
-        self.initialMoney = 1000
-        self.env = y_finance_env(self.stockList, self.date, "1y", self.initialMoney)
+        self.env = y_finance_env(STOCK_LIST, TRADE_DATE, "1y", INITIAL_MONEY)
 
     def step(self, action):
         """

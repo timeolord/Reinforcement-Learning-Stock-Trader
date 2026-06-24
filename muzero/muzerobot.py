@@ -1,5 +1,6 @@
 import copy
 import importlib
+import logging
 import math
 import os
 import pickle
@@ -19,8 +20,8 @@ from muzero import replay_buffer
 from muzero import self_play
 from muzero import shared_storage
 from muzero import trainer
-import threading
-import time
+
+logger = logging.getLogger(__name__)
 
 
 class MuZero:
@@ -48,9 +49,7 @@ class MuZero:
             self.Game = game_module.Game
             self.config = game_module.MuZeroConfig()
         except ModuleNotFoundError as err:
-            print(
-                f'{game_name} is not a supported game name, try "cartpole" or refer to the documentation for adding a new game.'
-            )
+            logger.error(f'{game_name} is not a supported game name, try "cartpole" or refer to the documentation for adding a new game.')
             raise err
 
         # Overwrite the config
@@ -90,7 +89,7 @@ class MuZero:
         if 1 < self.num_gpus:
             self.num_gpus = math.floor(self.num_gpus)
 
-        ray.init(num_gpus=torch.cuda.device_count())
+        ray.init(num_gpus=total_gpus)
 
         # Checkpoint and replay buffer used to initialize workers
         self.checkpoint = {
@@ -158,9 +157,6 @@ class MuZero:
             self.checkpoint, self.config,
         )
 
-        saver = threading.Thread(target=self.saveModel)
-        saver.start()
-
         self.shared_storage_worker.set_info.remote("terminate", False)
 
         self.replay_buffer_worker = replay_buffer.ReplayBuffer.remote(
@@ -203,18 +199,8 @@ class MuZero:
                 num_gpus_per_worker if self.config.selfplay_on_gpu else 0,
             )
 
-    def saveModel(self):
-        while True:
-            time.sleep(120)
-            os.makedirs(self.config.results_path, exist_ok=True)
-            path = os.path.join(self.config.results_path, "model.checkpoint")
-            if self.shared_storage_worker is not None:
-                print("Saving model")
-                torch.save(ray.get(self.shared_storage_worker.get_checkpoint.remote()), path)
-            self.saveBuffer()
-
     def saveBuffer(self):
-        print("Persisting replay buffer games to disk...")
+        logger.info("persisting replay buffer to disk")
         os.makedirs(self.config.results_path, exist_ok=True)
         pickle.dump(
             {
@@ -264,6 +250,7 @@ class MuZero:
         )
         # Loop for updating the training performance
         counter = 0
+        save_every = 240  # every ~120s at 0.5s sleep
         keys = [
             "total_reward",
             "muzero_reward",
@@ -331,6 +318,8 @@ class MuZero:
                     f'Last test reward: {info["total_reward"]:.2f}. Training step: {info["training_step"]}/{self.config.training_steps}. Played games: {info["num_played_games"]}. Loss: {info["total_loss"]:.2f}',
                     end="\r",
                 )
+                if self.config.save_model and counter % save_every == 0 and counter > 0:
+                    self.shared_storage_worker.save_checkpoint.remote()
                 counter += 1
                 time.sleep(0.5)
         except KeyboardInterrupt:
@@ -350,7 +339,7 @@ class MuZero:
         if self.replay_buffer_worker:
             self.replay_buffer = ray.get(self.replay_buffer_worker.get_buffer.remote())
 
-        print("\nShutting down workers...")
+        logger.info("shutting down workers")
 
         self.self_play_workers = None
         self.test_worker = None
@@ -425,9 +414,9 @@ class MuZero:
             if os.path.exists(checkpoint_path):
                 if os.stat(checkpoint_path).st_size != 0:
                     self.checkpoint = torch.load(checkpoint_path)
-                    print(f"\nUsing checkpoint from {checkpoint_path}")
+                    logger.info(f"loaded checkpoint from {checkpoint_path}")
             else:
-                print(f"\nThere is no model saved in {checkpoint_path}")
+                logger.warning(f"no model found at {checkpoint_path}")
 
         # Load replay buffer
         if replay_buffer_path:
@@ -439,11 +428,9 @@ class MuZero:
                 self.checkpoint["num_played_games"] = replay_buffer_infos["num_played_games"]
                 self.checkpoint["num_reanalysed_games"] = replay_buffer_infos["num_reanalysed_games"]
 
-                print(f"\nInitializing replay buffer with {replay_buffer_path}")
+                logger.info(f"loaded replay buffer from {replay_buffer_path}")
             else:
-                print(
-                    f"Warning: Replay buffer path '{replay_buffer_path}' doesn't exist.  Using empty buffer."
-                )
+                logger.warning(f"replay buffer path '{replay_buffer_path}' not found, using empty buffer")
                 self.checkpoint["training_step"] = 0
                 self.checkpoint["num_played_steps"] = 0
                 self.checkpoint["num_played_games"] = 0

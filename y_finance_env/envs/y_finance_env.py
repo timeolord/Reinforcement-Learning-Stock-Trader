@@ -1,4 +1,5 @@
 import datetime
+import logging
 import math
 
 import gymnasium as gym
@@ -6,6 +7,8 @@ import pickle
 from gymnasium import spaces
 import numpy as np
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,8 +30,7 @@ class y_finance_env(gym.Env):
             history = pickle.load(open(f"Stocks/{stocks.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
             nan_rows = history[history[['Close', 'Volume']].isna().any(axis=1)]
             if not nan_rows.empty:
-                print(f"warning: {stocks.upper()} has NaN values at the following rows, forward-filling:")
-                print(nan_rows[['Close', 'Volume']])
+                logger.warning(f"{stocks.upper()} has NaN values at {len(nan_rows)} rows, forward-filling")
                 history = history.ffill()
             self.stocks.append((history, l, stocks.upper()))
         self.historyLength = 24
@@ -138,7 +140,6 @@ class y_finance_env(gym.Env):
             # print(f"Remaining money: {self.money:.1f} Ticker: {self.ticker}")
             # print(len(self.shares))
             done = True
-            print("Finished a game!")
             reward = self.getReward()
 
         if not done:
@@ -191,13 +192,11 @@ class y_finance_env(gym.Env):
             close = stock[0].iloc[self.index - self.historyLength: self.index]["Close"].to_numpy()
             for i in range(len(close)):
                 if math.isnan(close[i]):
-                    print("found Nan")
                     close[i] = 0
             stonks.append(close)
             volume = stock[0].iloc[self.index - self.historyLength: self.index]["Volume"].to_numpy()
             for i in range(len(volume)):
                 if math.isnan(volume[i]):
-                    print("found Nan")
                     volume[i] = 0
             stonks.append(volume)
         # return self.stocks[self.action[3]][0].iloc[self.index - self.historyLength: self.index]["Close"].to_numpy()

@@ -1,4 +1,5 @@
 import copy
+import logging
 import time
 
 import numpy
@@ -6,6 +7,8 @@ import ray
 import torch
 
 from muzero import models
+
+logger = logging.getLogger(__name__)
 
 
 @ray.remote
@@ -23,9 +26,12 @@ class ReplayBuffer:
             [len(game_history.root_values) for game_history in self.buffer.values()]
         )
         if self.total_samples != 0:
-            print(
-                f"Replay buffer initialized with {self.total_samples} samples ({self.num_played_games} games).\n"
+            logger.info(
+                f"replay buffer initialized with {self.total_samples} samples ({self.num_played_games} games)"
             )
+
+        self._game_probs_cache = None
+        self._game_probs_dirty = True
 
         # Fix random generator seed
         numpy.random.seed(self.config.seed)
@@ -54,6 +60,7 @@ class ReplayBuffer:
         self.num_played_games += 1
         self.num_played_steps += len(game_history.root_values)
         self.total_samples += len(game_history.root_values)
+        self._game_probs_dirty = True
 
         if self.config.replay_buffer_size < len(self.buffer):
             del_id = self.num_played_games - len(self.buffer)
@@ -133,47 +140,42 @@ class ReplayBuffer:
             ),
         )
 
+    def _get_game_probs(self):
+        if self._game_probs_dirty:
+            game_id_list = list(self.buffer.keys())
+            raw = numpy.array([self.buffer[gid].game_priority for gid in game_id_list], dtype="float32")
+            total = numpy.sum(raw)
+            if total > 0 and numpy.isfinite(total):
+                probs = raw / total
+            else:
+                probs = numpy.ones(len(raw), dtype="float32") / len(raw)
+            self._game_probs_cache = (game_id_list, probs)
+            self._game_probs_dirty = False
+        return self._game_probs_cache
+
     def sample_game(self, force_uniform=False):
         """
         Sample game from buffer either uniformly or according to some priority.
         See paper appendix Training.
         """
-        game_prob = None
         if self.config.PER and not force_uniform:
-            game_probs = numpy.array(
-                [game_history.game_priority for game_history in self.buffer.values()],
-                dtype="float32",
-            )
-            game_probs /= numpy.sum(game_probs)
-            game_index = numpy.random.choice(len(self.buffer), p=game_probs)
-            game_prob = game_probs[game_index]
+            game_id_list, game_probs = self._get_game_probs()
+            game_index = numpy.random.choice(len(game_id_list), p=game_probs)
+            return game_id_list[game_index], self.buffer[game_id_list[game_index]], game_probs[game_index]
         else:
             game_index = numpy.random.choice(len(self.buffer))
-        game_id = self.num_played_games - len(self.buffer) + game_index
-
-        return game_id, self.buffer[game_id], game_prob
+            game_id = self.num_played_games - len(self.buffer) + game_index
+            return game_id, self.buffer[game_id], None
 
     def sample_n_games(self, n_games, force_uniform=False):
         if self.config.PER and not force_uniform:
-            game_id_list = []
-            game_probs = []
-            for game_id, game_history in self.buffer.items():
-                game_id_list.append(game_id)
-                game_probs.append(game_history.game_priority)
-            game_probs = numpy.array(game_probs, dtype="float32")
-            total = numpy.sum(game_probs)
-            if total > 0 and numpy.isfinite(total):
-                game_probs /= total
-            else:
-                game_probs = numpy.ones(len(game_probs), dtype="float32") / len(game_probs)
-            game_prob_dict = dict([(game_id, prob) for game_id, prob in zip(game_id_list, game_probs)])
+            game_id_list, game_probs = self._get_game_probs()
+            game_prob_dict = dict(zip(game_id_list, game_probs))
             selected_games = numpy.random.choice(game_id_list, n_games, p=game_probs)
         else:
             selected_games = numpy.random.choice(list(self.buffer.keys()), n_games)
             game_prob_dict = {}
-        ret = [(game_id, self.buffer[game_id], game_prob_dict.get(game_id))
-               for game_id in selected_games]
-        return ret
+        return [(game_id, self.buffer[game_id], game_prob_dict.get(game_id)) for game_id in selected_games]
 
     def sample_position(self, game_history, force_uniform=False):
         """
@@ -201,6 +203,7 @@ class ReplayBuffer:
                 # Avoid read only array when loading replay buffer from disk
                 game_history.priorities = numpy.copy(game_history.priorities)
             self.buffer[game_id] = game_history
+            self._game_probs_dirty = True
 
     def update_priorities(self, priorities, index_info):
         """
@@ -226,6 +229,7 @@ class ReplayBuffer:
                 self.buffer[game_id].game_priority = numpy.max(
                     self.buffer[game_id].priorities
                 )
+                self._game_probs_dirty = True
 
     def compute_target_value(self, game_history, index):
         # The value target is the discounted root value of the search tree td_steps into the

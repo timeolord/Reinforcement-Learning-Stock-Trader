@@ -15,12 +15,10 @@ class SharedStorage:
         self.current_checkpoint = copy.deepcopy(checkpoint)
 
     def save_checkpoint(self, path=None):
-        pass
-        # if not path:
-        #    path = "~/Music/"
-        #    path = os.path.join(path, "model.checkpoint")
-        #     path = os.path.expanduser(path)
-        # torch.save(self.current_checkpoint, path)
+        if not path:
+            path = os.path.join(self.config.results_path, "model.checkpoint")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.current_checkpoint, path)
 
     def get_checkpoint(self):
         return copy.deepcopy(self.current_checkpoint)

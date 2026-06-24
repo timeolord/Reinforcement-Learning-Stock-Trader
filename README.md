@@ -26,7 +26,7 @@ Stocks/                pickled pandas DataFrames of historical price data
 
 ## Setup
 
-Linux only, Ray does not support Windows or macOS.
+Linux and macOS are supported. Ray does not support Windows.
 
 The repo ships with a `flake.nix` and `.envrc`. With [nix](https://nixos.org/) and [direnv](https://direnv.net/) installed:
 
@@ -60,12 +60,12 @@ Training metrics are written to the path configured in `MuZeroConfig.results_pat
 tensorboard --logdir results/
 ```
 
-The model checkpoint and replay buffer are saved to `results/` every 2 minutes during training.
+The model checkpoint is saved to `results/trading/` every 2 minutes during training.
 
 To resume from a checkpoint, uncomment and update the `load_model` call in `TradingBot.py`:
 
 ```python
-muzero.load_model("results/model.checkpoint", "results/replay_buffer.pkl")
+muzero.load_model("results/trading/model.checkpoint", "results/trading/replay_buffer.pkl")
 ```
 
 ## Data
