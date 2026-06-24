@@ -182,7 +182,11 @@ class ReplayBuffer:
         """
         position_prob = None
         if self.config.PER and not force_uniform:
-            position_probs = game_history.priorities / sum(game_history.priorities)
+            total = sum(game_history.priorities)
+            if total > 0 and numpy.isfinite(total):
+                position_probs = game_history.priorities / total
+            else:
+                position_probs = numpy.ones(len(game_history.priorities), dtype="float32") / len(game_history.priorities)
             position_index = numpy.random.choice(len(position_probs), p=position_probs)
             position_prob = position_probs[position_index]
         else:

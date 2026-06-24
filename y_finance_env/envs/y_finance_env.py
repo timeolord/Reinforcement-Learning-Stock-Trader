@@ -23,9 +23,13 @@ class y_finance_env(gym.Env):
         self.stocks = []
         self.positionsPerStock = 5
         for stocks in stockList:
-            # print(os.getcwd())
             l = [None] * self.positionsPerStock
             history = pickle.load(open(f"Stocks/{stocks.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
+            nan_rows = history[history[['Close', 'Volume']].isna().any(axis=1)]
+            if not nan_rows.empty:
+                print(f"warning: {stocks.upper()} has NaN values at the following rows, forward-filling:")
+                print(nan_rows[['Close', 'Volume']])
+                history = history.ffill()
             self.stocks.append((history, l, stocks.upper()))
         self.historyLength = 24
         self.money = self.initialMoney
@@ -83,6 +87,7 @@ class y_finance_env(gym.Env):
             for i in range(self.positionsPerStock):
                 stock[1].append(None)
         self.index = self.historyLength
+        self.heldPositions = 0
         observation = self.getObservation()
         return observation, {}
 
@@ -92,11 +97,13 @@ class y_finance_env(gym.Env):
     def getCurrentStockPrice(self, stock):
         return self.stocks[stock][0].iloc[self.index].loc["Close"]
 
-    def sharesValue(self, stocks):
-        sum = 0
+    def sharesValue(self, stock_index):
+        stocks = self.stocks[stock_index]
+        total = 0
         for shares in stocks[1]:
-            sum += shares.shares * self.getCurrentSharePrice()
-        return sum
+            if shares is not None:
+                total += shares.shares * self.getCurrentStockPrice(stock_index)
+        return total
 
     def getNetWorth(self):
         sum = 0
@@ -109,7 +116,7 @@ class y_finance_env(gym.Env):
     def getMaxLength(self):
         length = []
         for stocks in self.stocks:
-            length.append(len(stocks[0] - 1))
+            length.append(len(stocks[0]) - 1)
         return min(length) - 1
 
     def step(self, action):
@@ -229,7 +236,8 @@ class y_finance_env(gym.Env):
         selectedStock = self.stocks[action[3]]
         if len(selectedStock[1]) != 0:
             if action[2] < len(selectedStock[1]) and selectedStock[1][action[2]] is not None:
-                stock = selectedStock[1].pop(action[2])
+                stock = selectedStock[1][action[2]]
+                selectedStock[1][action[2]] = None
             else:
                 return self.idleCost
             amountToSell = stock.shares
@@ -251,8 +259,8 @@ class y_finance_env(gym.Env):
         if moneyToSpend >= self.getCurrentSharePrice():
             amountToBuy = moneyToSpend // self.getCurrentSharePrice()
             if (self.money - (self.getCurrentSharePrice() * amountToBuy)) > 0:
-                if self.stocks[self.action[3]][1][action[2]] is None:
-                    self.stocks[self.action[3]][1].insert(action[2], Stock(self.getCurrentSharePrice(), amountToBuy))
+                if self.stocks[action[3]][1][action[2]] is None:
+                    self.stocks[action[3]][1][action[2]] = Stock(self.getCurrentSharePrice(), amountToBuy)
                     self.money -= (amountToBuy * self.getCurrentSharePrice()) + \
                               (amountToBuy * self.getCurrentSharePrice()) * self.tradingFee
                     self.heldPositions += 1

@@ -57,7 +57,7 @@ def getData():
     for stocks in stockList:
         for dates in dateList:
             try:
-                pickle.load(open(f"{stocks.upper()}History{dates.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
+                pickle.load(open(f"Stocks/{stocks.upper()}History{dates.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
             except Exception:
                 print(getTickerHistory(stocks, dates, dayInterval, interval))
                 time.sleep(5)
@@ -69,7 +69,7 @@ def getDataForToday():
     dates = today
     for stocks in stockList:
         try:
-            pickle.load(open(f"{stocks.upper()}History{dates.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
+            pickle.load(open(f"Stocks/{stocks.upper()}History{dates.strftime('%Y_%m_%d')}_{interval}.p", "rb"))
         except Exception:
             print(getTickerHistory(stocks, dates, dayInterval, interval))
             time.sleep(5)
@@ -93,7 +93,7 @@ def combineList():
                 data = data.tz_convert(None)
             listy.append(data)
         history = pd.concat(listy)
-        pickle.dump(history, open(f"{stocks.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "wb"))
+        pickle.dump(history, open(f"Stocks/{stocks.upper()}History{date.strftime('%Y_%m_%d')}_{interval}.p", "wb"))
 
 
 test = False
