@@ -1,9 +1,9 @@
 import datetime
 import math
 
-import gym
+import gymnasium as gym
 import pickle
-from gym import spaces
+from gymnasium import spaces
 import numpy as np
 from dataclasses import dataclass
 
@@ -84,7 +84,7 @@ class y_finance_env(gym.Env):
                 stock[1].append(None)
         self.index = self.historyLength
         observation = self.getObservation()
-        return observation
+        return observation, {}
 
     def getCurrentSharePrice(self):
         return self.stocks[self.action[3]][0].iloc[self.index].loc["Close"]
@@ -164,7 +164,7 @@ class y_finance_env(gym.Env):
         # print(f"Money: {self.money}. Reward: {reward}")
 
         observation = self.getObservation()
-        return observation, reward, done, info
+        return observation, reward, done, False, info
 
     def getReward(self):
         marketGrowth = self.getMarketGrowth()
@@ -272,13 +272,13 @@ if __name__ == "__main__":
     actualDate = datetime.date(day=1, month=12, year=2019)
     stockList = ["SPY", "AAPL", "NIO", "F", "XLF", "GE", "GM", "T", "TQQQ", "QQQ", "MSFT", "K", "C"]
     env = y_finance_env(stockList, actualDate, "1y", 1000)
-    obs = env.reset()
+    obs, _ = env.reset()
     env.debug = True
     done = False
     while not done:
         env.getLegalMoves()
         i = np.ravel_multi_index((1, 0, 0, 7), (3, 4, env.positionsPerStock, len(env.stockList)))
-        obs, reward, done, _ = env.step(i)
+        obs, reward, done, _, _ = env.step(i)
 
 # print(env.getMaxLength())
 # print(len(env.stocks[0][0]))

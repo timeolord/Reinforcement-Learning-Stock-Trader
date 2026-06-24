@@ -161,7 +161,11 @@ class ReplayBuffer:
                 game_id_list.append(game_id)
                 game_probs.append(game_history.game_priority)
             game_probs = numpy.array(game_probs, dtype="float32")
-            game_probs /= numpy.sum(game_probs)
+            total = numpy.sum(game_probs)
+            if total > 0 and numpy.isfinite(total):
+                game_probs /= total
+            else:
+                game_probs = numpy.ones(len(game_probs), dtype="float32") / len(game_probs)
             game_prob_dict = dict([(game_id, prob) for game_id, prob in zip(game_id_list, game_probs)])
             selected_games = numpy.random.choice(game_id_list, n_games, p=game_probs)
         else:
@@ -342,7 +346,7 @@ class Reanalyse:
                 ]
 
                 observations = (
-                    torch.tensor(observations)
+                    torch.tensor(numpy.array(observations))
                     .float()
                     .to(next(self.model.parameters()).device)
                 )

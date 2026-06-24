@@ -1,6 +1,5 @@
 import datetime
 import os
-import gym
 import numpy as np
 import torch
 from y_finance_env import y_finance_env
@@ -91,8 +90,7 @@ class MuZeroConfig:
         self.batch_size = 128  # Number of parts of games to train on at each training step
         self.checkpoint_interval = 10  # Number of training steps before using the model for self-playing
         self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
-        self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
-        self.train_on_gpu = True
+        self.train_on_gpu = torch.cuda.is_available()
 
         self.optimizer = "SGD"  # "Adam" or "SGD". Paper uses SGD
         self.weight_decay = 1e-4  # L2 weights regularization
@@ -149,8 +147,6 @@ class Game(AbstractGame):
                          datetime.date(day=25, month=11, year=2020), datetime.date(day=24, month=1, year=2021)]
         self.initialMoney = 1000
         self.env = y_finance_env(self.stockList, datetime.date(day=7, month=4, year=2021), "1h", self.initialMoney)
-        if seed is not None:
-            self.env.seed(seed)
 
     def step(self, action):
         """
@@ -162,8 +158,8 @@ class Game(AbstractGame):
         Returns:
             The new observation, the reward and a boolean if the game has ended.
         """
-        observation, reward, done, _ = self.env.step(action)
-        return observation, reward, done
+        observation, reward, terminated, truncated, _ = self.env.step(action)
+        return observation, reward, terminated or truncated
 
     def legal_actions(self):
         """
@@ -186,7 +182,7 @@ class Game(AbstractGame):
         Returns:
             Initial observation of the game.
         """
-        return self.env.reset()
+        return self.env.reset()[0]
 
     def close(self):
         """

@@ -90,7 +90,7 @@ class MuZero:
         if 1 < self.num_gpus:
             self.num_gpus = math.floor(self.num_gpus)
 
-        ray.init()
+        ray.init(num_gpus=torch.cuda.device_count())
 
         # Checkpoint and replay buffer used to initialize workers
         self.checkpoint = {
@@ -148,8 +148,6 @@ class MuZero:
                 num_gpus_per_worker = math.floor(num_gpus_per_worker)
         else:
             num_gpus_per_worker = 0
-
-        num_gpus_per_worker = 1
 
         # Initialize workers
         self.training_worker = trainer.Trainer.options(
